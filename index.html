@@ -119,6 +119,9 @@
                 'Minggu Malam Senin': ['Bp Haji Udin', 'Bp Imam H47', 'Bp Ikhsan', 'Bp Rastam']
             };
 
+            // URL Google Apps Script yang akan menampung data
+            const appsScriptUrl = "https://script.google.com/macros/s/AKfycby1M45qL1UzadTg5I8Q9ZYVLwj47F2OxBlIPfjnwHIMw5zFi_8ByPnduyZW5Vm1-g/exec"; // Ganti dengan URL skrip Anda
+
             // Fungsi untuk menampilkan modal pesan
             const showMessageModal = (message) => {
                 modalText.textContent = message;
@@ -248,7 +251,7 @@
                     }
                 });
 
-                form.addEventListener('submit', (e) => {
+                form.addEventListener('submit', async (e) => {
                     e.preventDefault();
 
                     const petugasAbsen = document.getElementById('petugasAbsen').value;
@@ -271,6 +274,11 @@
                     });
 
                     // Validasi: pastikan field Petugas Absen tidak kosong dan status kehadiran terisi
+                    if (!petugasAbsen) {
+                        showMessageModal('Silakan isi nama petugas absen.');
+                        return;
+                    }
+
                     if (isStatusMissing) {
                         showMessageModal('Silakan isi status kehadiran untuk semua petugas.');
                         return;
@@ -288,24 +296,48 @@
                         prelek: prelek
                     };
 
-                    const records = JSON.parse(localStorage.getItem('rondaRecords')) || [];
-                    records.push(newRecord);
-                    localStorage.setItem('rondaRecords', JSON.stringify(records));
+                    // Mengirim data ke Google Apps Script
+                    try {
+                        const response = await fetch(appsScriptUrl, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify(newRecord)
+                        });
 
-                    form.reset();
-                    prelekInput.value = '';
+                        if (response.ok) {
+                            const result = await response.json();
+                            if (result.status === 'success') {
+                                // Simpan ke localStorage juga untuk fitur rekap lokal
+                                const records = JSON.parse(localStorage.getItem('rondaRecords')) || [];
+                                records.push(newRecord);
+                                localStorage.setItem('rondaRecords', JSON.stringify(records));
 
-                    // Set radio button pertama (Hadir) sebagai default setelah reset
-                    currentPatrolMembers.forEach(member => {
-                        const memberId = member.replace(/\s/g, '-');
-                        const defaultRadio = document.getElementById(`hadir-${memberId}`);
-                        if (defaultRadio) {
-                            defaultRadio.checked = true;
+                                form.reset();
+                                prelekInput.value = '';
+
+                                // Set radio button pertama (Hadir) sebagai default setelah reset
+                                currentPatrolMembers.forEach(member => {
+                                    const memberId = member.replace(/\s/g, '-');
+                                    const defaultRadio = document.getElementById(`hadir-${memberId}`);
+                                    if (defaultRadio) {
+                                        defaultRadio.checked = true;
+                                    }
+                                });
+
+                                showMessageModal('Absensi berhasil disimpan!');
+                                renderForm(); // Render ulang form untuk menampilkan pesan "sudah diisi"
+                            } else {
+                                showMessageModal('Gagal menyimpan absensi. Coba lagi.');
+                            }
+                        } else {
+                            showMessageModal('Terjadi kesalahan koneksi.');
                         }
-                    });
-
-                    showMessageModal('Absensi berhasil disimpan!');
-                    renderForm(); // Render ulang form untuk menampilkan pesan "sudah diisi"
+                    } catch (error) {
+                        console.error('Error:', error);
+                        showMessageModal('Terjadi kesalahan saat mengirim data.');
+                    }
                 });
             };
 
